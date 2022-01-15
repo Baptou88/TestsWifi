@@ -7,6 +7,8 @@
 #include <DNSServer.h>
 #include "main.h"
 
+#include "confidential.h"
+
 #define USE_DSN 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -19,13 +21,10 @@ const char* PARAM_INPUT_3 = "ip";
 byte selectionWifi = 0;
 byte maxItems=3;
 byte offset =0;
-struct wifiparamconnexion{
-  String SSID;
-  String Credential;
-  bool selected ;
-};
 
-wifiparamconnexion test []=  {{"baptou","test",false},{"doudou","12",false},{"loulou","32",false},{"Quetsch","er",false},{"manou","tr",false}};
+
+wifiparamconnexion test2 []=  {{"baptou","test",false},{"doudou","12",false},{"loulou","32",false},{"Quetsch","er",false},{"manou","tr",false}};
+wifiparamconnexion * test3 = test2;
 //Variables to save values from HTML form
 String ssid;
 String pass;
@@ -67,7 +66,13 @@ class menu
 private:
   /* data */
 public:
-  menu(int maxI,int maxR,byte pinSelect = 0);
+/**
+ * @brief Construct a new menu object
+ * 
+ * @param maxI 
+ * @param maxR 
+ */
+  menu(int maxI,int maxR);
   ~menu();
   void render(void(*callback)(int));
   void onSelect(void(*callback)(int));
@@ -85,7 +90,7 @@ public:
   int last =0;
 };
 
-menu::menu(int maxI,int maxR, byte pinSelect)
+menu::menu(int maxI,int maxR)
 {
   maxItems = maxI;
   maxRow = maxR;
@@ -142,11 +147,15 @@ int menu::selectPrevious(){
   return select;
   
 }
+
 menu menuWifi(5,3);
+
+
 enum ModeWifi {
   initSoftAp,
   SoftAp,
   SelectWifi,
+  PrintSelectedWifi,
   InitSta,
   Sta,
   InitScanWifi,
@@ -328,6 +337,7 @@ void HandleModeWifi(){
     Heltec.display->display();
     break;
   case InitSta:
+  Heltec.display->clear();
     WiFi.mode(WIFI_STA);
     IP.fromString(ip.c_str());
     if (!WiFi.config(IP, gateway, subnet,gateway)){
@@ -336,13 +346,46 @@ void HandleModeWifi(){
     }
     WiFi.begin(ssid.c_str(), pass.c_str());
     Serial.println("Connecting to WiFi...");
+    Heltec.display->drawString(0,0,"Connecting to WiFi...");
     while(WiFi.status() != WL_CONNECTED) {
-      static unsigned long currentMillis = millis();
+      Heltec.display->clear();
+      Heltec.display->drawString(0,0,"Connecting to WiFi...");
+      static byte point = 0;
+      static byte start = 0;
+       unsigned long currentMillis = millis();
       static unsigned long previousMillis = 0;
-      if (currentMillis - previousMillis >= 10000) {
-        Serial.println("Failed to connect.");
+      //Serial.println((String)currentMillis + " " + (String) previousMillis);
+      //delay(100);
+      if (currentMillis - previousMillis >= 10) {
+        previousMillis = currentMillis;
+        //Serial.println("Failed to connect.");
+        point ++;
+        if (point > 128)
+        {
+          point--;
+          start++;
+          if (start > 127)
+          {
+            point = 0;
+            start = 0;
+          }
+          
+        }
+        if (point > 16)
+        {
+          start++;
+        }
+        Serial.println(start);
+        
         
       }
+      for (size_t i = start; i < point; i++)
+        {
+          Heltec.display->setPixel(i+1,42);
+          
+        }
+        
+      Heltec.display->display();
     }
     IP = WiFi.localIP();
     server.on("/", HTTP_GET , [](AsyncWebServerRequest * request) {
@@ -423,6 +466,14 @@ void HandleModeWifi(){
     }
     if (digitalRead(37) == LOW){
       test[menuWifi.select].selected = !test[menuWifi.select].selected ;
+      ssid = test[menuWifi.select].SSID;
+      pass = test[menuWifi.select].Credential;
+      ip = "192.168.1.148";
+
+
+      delay(100);
+      MWifi = PrintSelectedWifi;
+      break;
     }
     
     
@@ -451,6 +502,18 @@ void HandleModeWifi(){
     }
     
     Heltec.display->display();
+    break;
+  case PrintSelectedWifi:
+  static unsigned long delai = millis();
+    Heltec.display->clear();
+    Heltec.display->drawString(0,0,"Sélection: ");
+    Heltec.display->drawString(0,15,ssid);
+    Heltec.display->display();
+    if (delai > millis() +0)
+    {
+      
+    }
+    MWifi = ModeWifi::InitSta;
     break;
   default:
     break;
